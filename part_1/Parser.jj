@@ -1,0 +1,406 @@
+PARSER_BEGIN(Parser)
+package analisador_lexico;
+import analisador_semantico.syntaxtree.*;
+public class Parser{
+    public static void main(String[] args) {
+        try {
+            new Parser(new java.io.FileInputStream(args[0])).Goal();                
+            System.out.println("Syntax is okay");
+        } catch (Throwable e) {
+            // Catching Throwable is ugly but JavaCC throws Error objects!
+            System.out.println("Syntax check failed: " + e.getMessage());
+        }         
+    }
+}
+
+PARSER_END(Parser)
+
+TOKEN: {        < PUBLIC : "public" >{System.out.print("PUBLIC ");} 
+        |       < CLASS : "class">  {System.out.print("CLASS ");} 
+        |       < STATIC : "static" > {System.out.print("STATIC ");} 
+        |       < VOID : "void" > {System.out.print("VOID ");} 
+        |       < MAIN : "main" > {System.out.print("MAIN ");} 
+        
+        |       < RETURN : "return" > {System.out.print("RETURN ");} 
+        |       < EXTENDS : "extends" > {System.out.print("EXTENDS ");} 
+        |       < NEW : "new" > {System.out.print("NEW ");} 
+        |       < PRINT : "System.out.println"> {System.out.print("PRINT ");} 
+        |       < IF : "if" > {System.out.print("IF ");} 
+        |       < ELSE : "else" > {System.out.print("ELSE ");} 
+        |       < LENGTH : "length" > {System.out.print("LENGTH");} 
+        |       < WHILE : "while" > {System.out.print("WHILE ");} 
+        
+        |       < STRING : "String" > {System.out.print("STRING ");} 
+        |       < INT : "int" > {System.out.print("INT ");} 
+        |       < BOOLEAN : "boolean" > {System.out.print("BOOLEAN ");} 
+        
+        |       < TRUE : "true" > {System.out.print("TRUE ");} 
+        |       < FALSE : "false" > {System.out.print("FALSE ");} 
+        |       < THIS : "this" > {System.out.print("THIS ");} 
+   
+        |       < #DIGIT: ["0"-"9"]> 
+        |       < #LETTER: ["A"-"Z"]|["a"-"z"]>
+        |       < #INTEGER: (<DIGIT>)+ >
+        |       < #REAL: ((<DIGIT>)+ "." (<DIGIT>)*) | ((<DIGIT>)* "." (<DIGIT>)+) >
+        |       < IDENTIFIER: <LETTER> (<LETTER> | <DIGIT> | "_")*> {System.out.print("IDENTIFIER{"+matchedToken.image+"} ");} 
+        |       < INTEGER_LITERAL: (["a"-"z"] (["a"-"z"] | ["0"-"9"])*) | ((["0"-"9"])+) | (<REAL>) >  {System.out.print("INTEGER_LITERAL{"+matchedToken.image+"} ");}  
+                
+        |       < LPAREN: "("> {System.out.print("LPAREN ");} 
+        |       < RPAREN: ")"> {System.out.print("RPAREN ");} 
+        |       < LCOLCH: "["> {System.out.print("LCOLCH ");} 
+        |       < RCOLCH: "]"> {System.out.print("RCOLCH ");} 
+        |       < LBRACE: "{"> {System.out.print("LBRACE ");} 
+        |       < RBRACE: "}"> {System.out.print("RBRACE ");} 
+        |       < RBRACE_INTERROG: ")?"> {System.out.print("RBRACE_INTERROG ");} 
+        |       < SEMI_COMMA: ";"> {System.out.print("SEMI_COMMA ");} 
+        |       < DOT: "." > {System.out.print("DOT ");} 
+        |       < BANG: "!" > {System.out.print("BANG ");} 
+        |       < COMMA: "," > {System.out.print("COMMA ");} 
+      
+        |       < EQUAL: "="> {System.out.print("EQUAL ");} 
+        |       < AND: "&&"> {System.out.print("AND ");} 
+        |       < LESS_THEN: "<"> {System.out.print("LESS_THEN ");} 
+        |       < BIGGER_THEN: ">"> {System.out.print("BIGGER_THEN ");} 
+        |       < PLUS : "+" > {System.out.print("PLUS ");} 
+        |       < MINUS : "-"> {System.out.print("MINUS ");} 
+        |       < STAR: "*"> {System.out.print("STAR ");} 
+}
+    
+SKIP : {        <"--"(["a"-"z"])*("\n" | "\r" | "\r\n")>
+        |       <"/*" (~[])* "*/"> 
+        |       <"//" (~["\n","\r"])* ("\n"|"\r"|"\r\n")> 
+        |       " " 
+        |       "\t" 
+        |       "\n"
+        |       "\r"
+}
+
+Program Goal(): {
+    MainClass main;
+    ClassDeclaration class_decl;
+    ClassList class_list = new ClassList();
+}{   
+    main = MainClass() 
+    (class_decl = ClassDeclaration() {class_list.addElement(class_decl);})*
+    <EOF>
+    {return new Program(main, class_list);}
+}
+
+MainClass MainClass(): {
+    Identifier id1;
+    Identifier id2;
+    Statement statement;
+}{
+    <CLASS> 
+    id1 = Identifier()
+    <LBRACE> <PUBLIC> <STATIC> <VOID> <MAIN> <LPAREN> <STRING> <LCOLCH> <RCOLCH> 
+    id2 = Identifier() 
+    <RPAREN> <LBRACE> 
+    statement = Statement() 
+    <RBRACE> <RBRACE>
+    {return new Main(id1, id2, statement);}
+}
+
+ClassDeclaration ClassDeclaration(): {
+    Identifier id1;
+    Identifier id2;
+    VarDefinitionList var_list = new VarDefinitionList();
+    VarDeclaration var;
+    MethodDeclaration method;
+    MethodDeclarationList method_list = new MethodDeclarationList();
+}{
+    LOOKAHEAD(3)
+    <CLASS>
+    id1 = Identifier() 
+    <LBRACE>
+    (var = VarDeclaration() {var_list.addElement(var);})*
+    (method = MethodDeclaration() {method_list.addElement(method);})*
+    <RBRACE>
+    { return new ClassSimple(id1, var_list, method_list); }
+    
+    |   <CLASS>
+        id1 = Identifier() 
+        <EXTENDS> 
+        id2 = Identifier()
+        <LBRACE>
+        (var = VarDeclaration() {var_list.addElement(var);})*
+        (method = MethodDeclaration() {method_list.addElement(method);})*
+        <RBRACE>
+        { return new ClassDeclarationExtends(id1, id2, var_list, method_list); }
+}
+
+VarDeclaration VarDeclaration(): {
+    Type type;
+    Identifier id1;
+}{
+    type = Type() 
+    id1 = Identifier() 
+    <SEMI_COMMA>
+    {return new VarDefinition(type, id1);}
+}
+
+MethodDeclaration MethodDeclaration(): {
+    Type type;
+    Identifier id1;
+    FormalList formal_list = new FormalList();
+    VarDeclaration var;
+    VarDefinitionList var_list = new VarDefinitionList();
+    Statement statement;
+    StatementList statement_list = new StatementList();
+    Expression exp;
+    ExpList exp_list = new ExpList();
+}{
+    <PUBLIC> 
+    type = Type() 
+    id1 = Identifier() 
+    <LPAREN> 
+    formal_list = FormalList()
+    <RPAREN> <LBRACE> 
+    (LOOKAHEAD(2) 
+    var = VarDeclaration() {var_list.addElement(var);})* 
+    (statement = Statement() {statement_list.addElement(statement);})* 
+    <RETURN> 
+    exp = Expression() 
+    <SEMI_COMMA> <RBRACE>
+	{ return new MethodDefinition(type, id1, formal_list, var_list, statement_list, exp); }
+}
+
+Formal Formal():{
+    Type type;
+    Identifier id;
+}
+{
+  type = Type() 
+  id = Identifier()
+  {return new Formal(type, id);}
+}
+
+FormalList FormalList() :
+{
+    FormalList list = new FormalList();
+    Formal formal;
+    Formal formal2;
+}
+{
+  (formal = Formal(){ list.addElement(formal); }) 
+  (formal2 = FormalTail() {list.addElement(formal2);})*
+  {return list;}
+  | {return list;}
+}
+
+Formal FormalTail():{
+    Type type;
+    Identifier id;
+}
+{ 
+    <COMMA> 
+    type = Type() 
+    id = Identifier()
+    {return new Formal(type, id);}
+}
+
+Type Type(): {}{
+
+    LOOKAHEAD(2)
+    <INT><LCOLCH><RCOLCH> {return new ArrayType();}
+    | <INT> {return new IntegerType();}
+    | <IDENTIFIER> {return new IdentifierType(token.image);} 
+    | <BOOLEAN> {return new BooleanType();}
+}
+
+Statement Statement(): {
+    Statement statement;
+    Statement statement2;
+    Identifier id;
+    StatementList statement_list = new StatementList();
+    Expression exp;
+    Expression exp2;
+}{
+    <LBRACE> 
+    (statement = Statement(){statement_list.addElement(statement);})* 
+    <RBRACE>
+    {return new BlockStatement(statement_list);}
+    
+    |   <IF> <LPAREN> 
+        exp = Expression() 
+        <RPAREN> 
+        statement = Statement() 
+        <ELSE> 
+        statement2 = Statement()
+        {return new IfStatement(exp, statement, statement2);}
+    
+    |   <WHILE> <LPAREN> 
+        exp = Expression() 
+        <RPAREN> 
+        statement = Statement()
+        {return new WhileStatement(exp, statement);}
+    
+    |   <PRINT> <LPAREN> 
+        exp = Expression() 
+        <RPAREN> <SEMI_COMMA>
+        {return new PrintStatement(exp);}
+    
+    |   LOOKAHEAD(2) 
+        id = Identifier() 
+        <EQUAL> 
+        exp = Expression() 
+        <SEMI_COMMA>
+        {return new AssignStatement(exp, id);}
+    
+    |   id = Identifier() 
+        <LCOLCH> 
+        exp = Expression() 
+        <RCOLCH> <EQUAL> 
+        exp2 = Expression() 
+        <SEMI_COMMA>
+        {return new ArrayAssignStatement(exp, exp2, id);}
+}
+
+Expression Exp(Expression exp): {
+
+    Expression exp2;
+    AndExpression ad;
+    LessExpression less;
+    PlusExpression plus;
+    MinusExpression minus;
+    MultExpression mult;
+    ListExpression arrayExpression;
+    LengthExpression len;
+    Identifier id;
+    ExpList expList; 
+    BigExpression bigExpression;
+    
+}{ 
+   
+    <AND> 
+    exp2 = Expression() 
+    {ad = new AndExpression(exp, exp2);}
+    {return Exp(ad);}  
+    
+    | <LESS_THEN> 
+    exp2 = Expression() 
+    {less = new LessExpression(exp, exp2);}
+    {return Exp(less);}
+    
+    | <PLUS> exp2 = Expression() 
+    {plus = new PlusExpression(exp, exp2);}
+    {return Exp(plus);}
+    
+    | <MINUS> exp2 = Expression()
+    {minus =  new MinusExpression(exp, exp2);}
+    {return Exp(minus);}
+    
+    | <STAR> exp2 = Expression() 
+    {mult = new MultExpression(exp, exp2);}
+    {return Exp(mult);}
+	
+    | <LCOLCH> 
+    exp2 = Expression() 
+    <RCOLCH> 
+    {arrayExpression = new ListExpression(exp, exp2);}
+    {return Exp(arrayExpression);}
+	
+    | LOOKAHEAD(3) <DOT> 
+    <LENGTH> 
+    {len = new LengthExpression(exp);}
+    {return Exp(len);}
+	
+    | <DOT> 
+    {id = Identifier();} 
+    <LPAREN>
+    {expList = ExpList();} 
+    <RPAREN> 
+    {bigExpression = new BigExpression(exp, id, expList);}
+	{return Exp(bigExpression);}
+    
+    | {return exp;}	
+}
+
+Expression Expression(): {
+
+    IntegerLiteralExpression int_li;
+    TrueExpression t;
+    FalseExpression f;
+    Identifier id;
+    ThisExpression thi;
+    Expression exp;
+    Identifier id2;
+    Expression exp2;
+    NewIntegerExpression newInteger;
+    NewIdentifierExpression newIdentifier;
+    NotExpression no;
+    Expression exp3, exp4;
+    IdentifierExpression id3;
+
+}{
+
+	<INTEGER_LITERAL> 
+    {int_li = new IntegerLiteralExpression(Integer.parseInt(token.image));} 
+    { return Exp(int_li);}
+	
+    | <TRUE>
+    {t = new TrueExpression();}
+    { return Exp(t); }
+
+	| <FALSE> 
+    {f = new FalseExpression();}
+    { return Exp(f); }
+
+    | <IDENTIFIER> 
+    {id3 = new IdentifierExpression(token.image);}
+    { return Exp(id3); }
+
+	| <THIS> 
+    {thi = new ThisExpression(); }
+    {return Exp(thi);}
+
+	| LOOKAHEAD(2) <NEW> <INT> <LCOLCH>
+    exp = Expression() 
+    <RCOLCH>
+     {newInteger = new NewIntegerExpression(exp);}
+    {return Exp(newInteger);}
+
+	| <NEW> 
+    {id2 = Identifier();} 
+    <LPAREN> <RPAREN> 
+    {newIdentifier = new NewIdentifierExpression(id2);}
+	{return Exp(newIdentifier);}
+
+    | <BANG> 
+    exp3 = Expression()
+    {no = new NotExpression(exp3);}
+    {return Exp(no);}
+
+	| <LPAREN> 
+    exp4 = Expression() 
+    <RPAREN> 
+    {return Exp(exp4); }
+}
+
+ExpList ExpList():{
+    Expression exp1;
+    Expression exp2;
+    ExpList expList = new ExpList();
+}{
+    (exp1 = Expression() {expList.addElement(exp1);})
+    (exp2 = ExpTail() {expList.addElement(exp2); })*
+    {return expList;}
+    |{return expList;}
+}
+
+
+Expression ExpTail():{
+    Expression exp1;
+}
+{
+    <COMMA>
+    exp1 = Expression()
+    {return exp1;}    
+}
+
+Identifier Identifier(): {}{
+    <IDENTIFIER> 
+    { return new Identifier(token.image); }
+}
+
+
