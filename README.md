@@ -14,3 +14,4 @@ $ cd part_1
 $ javacc Parser.jj
 $ javac *.java
 $ java Parser minijava.java
+```
